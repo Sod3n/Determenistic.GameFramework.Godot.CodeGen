@@ -113,6 +113,11 @@ public static class ViewGenerator
             sb.AppendLine("            {");
             sb.AppendLine("                SkinVisualizer.UpdateSkins(visualNode, skins);");
             sb.AppendLine("            }).AddTo(vm.Disposables);");
+            sb.AppendLine();
+            sb.AppendLine("            vm.Skin.Colors.Subscribe(colors =>");
+            sb.AppendLine("            {");
+            sb.AppendLine("                SkinVisualizer.UpdateColors(visualNode, colors);");
+            sb.AppendLine("            }).AddTo(vm.Disposables);");
             sb.AppendLine("        }");
             sb.AppendLine();
             sb.AppendLine("        vm.IsHidden.Subscribe(hidden =>");
