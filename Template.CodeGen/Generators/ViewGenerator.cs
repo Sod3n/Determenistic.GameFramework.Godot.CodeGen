@@ -39,6 +39,7 @@ public static class ViewGenerator
         sb.AppendLine();
         sb.AppendLine("    private readonly CompositeDisposable _disposables = new();");
         sb.AppendLine($"    private readonly Dictionary<{entity.EntityName}ViewModel, Node3D> _spawnedEntities = new();");
+        sb.AppendLine("    [Export] public float DespawnDelay = 0f;");
         sb.AppendLine();
 
         // _Ready — register
@@ -141,8 +142,19 @@ public static class ViewGenerator
         sb.AppendLine("    {");
         sb.AppendLine("        if (_spawnedEntities.TryGetValue(vm, out var node))");
         sb.AppendLine("        {");
-        sb.AppendLine("            if (IsInstanceValid(node)) { node.Visible = false; node.QueueFree(); }");
         sb.AppendLine("            _spawnedEntities.Remove(vm);");
+        sb.AppendLine("            if (IsInstanceValid(node))");
+        sb.AppendLine("            {");
+        sb.AppendLine("                OnDespawned(vm, node);");
+        sb.AppendLine("                if (DespawnDelay > 0f)");
+        sb.AppendLine("                {");
+        sb.AppendLine("                    GetTree().CreateTimer(DespawnDelay).Timeout += () => { if (IsInstanceValid(node)) node.QueueFree(); };");
+        sb.AppendLine("                }");
+        sb.AppendLine("                else");
+        sb.AppendLine("                {");
+        sb.AppendLine("                    node.QueueFree();");
+        sb.AppendLine("                }");
+        sb.AppendLine("            }");
         sb.AppendLine("        }");
         sb.AppendLine("    }");
         sb.AppendLine();
@@ -171,6 +183,9 @@ public static class ViewGenerator
         // Partial hooks
         sb.AppendLine("    /// <summary>Called after entity visual is spawned and positioned. Add custom bindings here.</summary>");
         sb.AppendLine($"    partial void OnSpawned({entity.EntityName}ViewModel vm, Node3D visualNode);");
+        sb.AppendLine();
+        sb.AppendLine("    /// <summary>Called when entity is being removed. Play disappear animations here. Set DespawnDelay in the editor to defer QueueFree.</summary>");
+        sb.AppendLine($"    partial void OnDespawned({entity.EntityName}ViewModel vm, Node3D visualNode);");
         sb.AppendLine();
 
         // Cleanup
