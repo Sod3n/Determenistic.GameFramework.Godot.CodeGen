@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Linq;
 using System.Text;
 using Template.CodeGen.Models;
 
@@ -19,7 +20,9 @@ public static class DefinitionGenerator
         sb.AppendLine("using Template.Shared.Components;");
         sb.AppendLine("using System.Collections.Generic;");
 
-        if (entity.NavAgent != null)
+        // Include Navigation2D namespace if any navigation component is used
+        var navComponentNames = new HashSet<string> { "NavigationAgent2D", "NavigationWorld2D", "NavigationRegion2D", "NavigationObstacle2D", "NavMeshConstraint" };
+        if (entity.NavAgent != null || entity.Components.Any(c => navComponentNames.Contains(c.ComponentName)))
             sb.AppendLine("using Deterministic.GameFramework.Navigation2D.Components;");
 
         sb.AppendLine();

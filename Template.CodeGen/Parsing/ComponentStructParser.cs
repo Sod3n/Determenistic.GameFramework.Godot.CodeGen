@@ -65,11 +65,7 @@ public static class ComponentStructParser
             var fieldName = fieldMatch.Groups["name"].Value;
 
             // Skip constants and static fields
-            if (body[..fieldMatch.Index].LastIndexOf('\n') is int lineStart and >= 0)
-            {
-                var line = body[lineStart..fieldMatch.Index];
-                if (line.Contains("const ") || line.Contains("static ")) continue;
-            }
+            if (typeName.Contains("const") || typeName.Contains("static")) continue;
 
             descriptor.Fields.Add(new FieldDescriptor
             {

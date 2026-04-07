@@ -62,6 +62,25 @@ public class Program
             }
         }
 
+        // Also scan Framework component directories (for NavMeshConstraint, NavigationAgent2D, etc.)
+        var frameworkComponentDirs = GetArg(args, "--framework-components")?.Split(';')
+            ?? new[] { "Server/Framework/2D/Deterministic.GameFramework.TwoD.Navigation/Components",
+                       "Server/Framework/2D/Deterministic.GameFramework.TwoD.Physics/Components" };
+        foreach (var fwDir in frameworkComponentDirs)
+        {
+            if (!Directory.Exists(fwDir)) continue;
+            foreach (var csFile in Directory.GetFiles(fwDir, "*.cs", SearchOption.AllDirectories))
+            {
+                if (csFile.EndsWith(".g.cs")) continue;
+                var comp = ComponentStructParser.ParseFile(csFile);
+                if (comp != null && !knownComponents.ContainsKey(comp.ComponentName))
+                {
+                    knownComponents[comp.ComponentName] = comp;
+                    Console.WriteLine($"[CodeGen] Found framework component: {comp.ComponentName} ({comp.Fields.Count} fields) in {Path.GetFileName(csFile)}");
+                }
+            }
+        }
+
         // Phase 1b: Scan for enum types
         var knownEnums = EnumParser.ScanDirectories(componentsDir, entitiesDir);
         foreach (var info in knownEnums.Values)
