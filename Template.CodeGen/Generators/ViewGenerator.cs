@@ -156,6 +156,7 @@ public static class ViewGenerator
         sb.AppendLine("                }");
         sb.AppendLine("            }");
         sb.AppendLine("        }");
+        sb.AppendLine("        vm.Dispose();");
         sb.AppendLine("    }");
         sb.AppendLine();
 
@@ -192,6 +193,7 @@ public static class ViewGenerator
         sb.AppendLine("    public override void _ExitTree()");
         sb.AppendLine("    {");
         sb.AppendLine("        _disposables.Dispose();");
+        sb.AppendLine("        foreach (var vm in _spawnedEntities.Keys) vm.Dispose();");
         sb.AppendLine("        _spawnedEntities.Clear();");
         sb.AppendLine("    }");
 
