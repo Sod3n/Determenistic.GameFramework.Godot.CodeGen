@@ -24,6 +24,7 @@ public static class ViewGenerator
         sb.AppendLine("using ObservableCollections;");
         sb.AppendLine("using Template.Godot.Core;");
         sb.AppendLine("using Template.Shared.Components;");
+        sb.AppendLine("using Deterministic.GameFramework.ECS;");
         sb.AppendLine("using Deterministic.GameFramework.Reactive;");
         sb.AppendLine("using Deterministic.GameFramework.DAR;");
         sb.AppendLine("using DTransform2D = Deterministic.GameFramework.TwoD.Transform2D;");
@@ -67,7 +68,11 @@ public static class ViewGenerator
         sb.AppendLine("    {");
         sb.AppendLine("        _registered = true;");
         sb.AppendLine("        var client = GameManager.Instance.GameClient;");
-        sb.AppendLine($"        var list = client.Reactive.ObservableList<{primaryComponent}, DTransform2D, {entity.EntityName}ViewModel>(");
+        sb.AppendLine($"        var query = client.Reactive.ObservableCollection<{primaryComponent}, DTransform2D>();");
+        sb.AppendLine("        Func<Entity, bool> filter = null;");
+        sb.AppendLine("        GetEntityFilter(ref filter);");
+        sb.AppendLine("        if (filter != null) query = query.Where(filter);");
+        sb.AppendLine($"        var list = query.ToObservableList(");
         sb.AppendLine($"            ctx => new {entity.EntityName}ViewModel(ctx),");
         sb.AppendLine("            _disposables");
         sb.AppendLine("        );");
@@ -187,6 +192,9 @@ public static class ViewGenerator
         sb.AppendLine();
         sb.AppendLine("    /// <summary>Called when entity is being removed. Play disappear animations here. Set DespawnDelay in the editor to defer QueueFree.</summary>");
         sb.AppendLine($"    partial void OnDespawned({entity.EntityName}ViewModel vm, Node3D visualNode);");
+        sb.AppendLine();
+        sb.AppendLine("    /// <summary>Optional archetype filter. Assign the ref to a predicate to gate which entities this view spawns.</summary>");
+        sb.AppendLine("    partial void GetEntityFilter(ref Func<Entity, bool> filter);");
         sb.AppendLine();
 
         // Cleanup
