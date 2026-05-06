@@ -26,38 +26,33 @@ public class Program
 
         var filesWritten = 0;
 
-        // Phase 1: Scan hand-written component structs
-        var componentsDir = Path.Combine(serverOutput, "Components");
+        // Phase 1: Recursively scan serverOutput for hand-written component structs and definition stubs
         var knownComponents = new Dictionary<string, ComponentDescriptor>();
+        var componentLocations = new Dictionary<string, string>();
+        var definitionLocations = new Dictionary<string, string>();
+        var viewLocations = new Dictionary<string, string>();
+        var viewModelLocations = new Dictionary<string, string>();
 
-        if (Directory.Exists(componentsDir))
+        if (Directory.Exists(serverOutput))
         {
-            foreach (var csFile in Directory.GetFiles(componentsDir, "*.cs", SearchOption.AllDirectories))
+            foreach (var csFile in Directory.GetFiles(serverOutput, "*.cs", SearchOption.AllDirectories))
             {
-                // Skip generated files
                 if (csFile.EndsWith(".g.cs")) continue;
+                if (IsInBinOrObj(csFile)) continue;
 
                 var comp = ComponentStructParser.ParseFile(csFile);
                 if (comp != null)
                 {
                     knownComponents[comp.ComponentName] = comp;
+                    componentLocations[comp.ComponentName] = Path.GetDirectoryName(csFile)!;
                     Console.WriteLine($"[CodeGen] Found component: {comp.ComponentName} ({comp.Fields.Count} fields) in {Path.GetFileName(csFile)}");
                 }
-            }
-        }
 
-        // Also scan Entities folder (for PlayerEntity etc.)
-        var entitiesDir = Path.Combine(serverOutput, "Entities");
-        if (Directory.Exists(entitiesDir))
-        {
-            foreach (var csFile in Directory.GetFiles(entitiesDir, "*.cs", SearchOption.AllDirectories))
-            {
-                if (csFile.EndsWith(".g.cs")) continue;
-                var comp = ComponentStructParser.ParseFile(csFile);
-                if (comp != null)
+                var fileName = Path.GetFileNameWithoutExtension(csFile);
+                if (fileName.EndsWith("Definition") && !fileName.Contains('.'))
                 {
-                    knownComponents[comp.ComponentName] = comp;
-                    Console.WriteLine($"[CodeGen] Found component: {comp.ComponentName} ({comp.Fields.Count} fields) in {Path.GetFileName(csFile)}");
+                    var entityName = fileName.Substring(0, fileName.Length - "Definition".Length);
+                    definitionLocations[entityName] = Path.GetDirectoryName(csFile)!;
                 }
             }
         }
@@ -81,8 +76,30 @@ public class Program
             }
         }
 
-        // Phase 1b: Scan for enum types
-        var knownEnums = EnumParser.ScanDirectories(componentsDir, entitiesDir);
+        // Phase 1a': Recursively scan clientOutput for hand-written *View.cs / *ViewModel.cs stubs
+        if (Directory.Exists(clientOutput))
+        {
+            foreach (var csFile in Directory.GetFiles(clientOutput, "*.cs", SearchOption.AllDirectories))
+            {
+                if (csFile.EndsWith(".g.cs")) continue;
+                if (IsInBinOrObj(csFile)) continue;
+
+                var fileName = Path.GetFileNameWithoutExtension(csFile);
+                if (fileName.EndsWith("ViewModel"))
+                {
+                    var entityName = fileName.Substring(0, fileName.Length - "ViewModel".Length);
+                    viewModelLocations[entityName] = Path.GetDirectoryName(csFile)!;
+                }
+                else if (fileName.EndsWith("View"))
+                {
+                    var entityName = fileName.Substring(0, fileName.Length - "View".Length);
+                    viewLocations[entityName] = Path.GetDirectoryName(csFile)!;
+                }
+            }
+        }
+
+        // Phase 1b: Scan for enum types (anywhere under serverOutput)
+        var knownEnums = EnumParser.ScanDirectories(serverOutput);
         foreach (var info in knownEnums.Values)
             Console.WriteLine($"[CodeGen] Found enum: {info.Name} ({info.Members.Count} members{(info.IsFlags ? ", flags" : "")})");
 
@@ -141,22 +158,29 @@ public class Program
                 if (!knownComponents.ContainsKey(comp.ComponentName))
                 {
                     var code = ComponentGenerator.Generate(comp);
-                    var path = Path.Combine(serverOutput, "Components", $"{comp.ComponentName}.g.cs");
+                    var compFolder = componentLocations.GetValueOrDefault(comp.ComponentName, Path.Combine(serverOutput, "Components"));
+                    var path = Path.Combine(compFolder, $"{comp.ComponentName}.g.cs");
                     filesWritten += WriteIfChanged(path, code, dryRun);
                 }
             }
 
             var defCode = DefinitionGenerator.Generate(entity);
-            var defPath = Path.Combine(serverOutput, "Definitions", $"{entity.EntityName}Definition.g.cs");
+            var defFolder = definitionLocations.GetValueOrDefault(entity.EntityName, Path.Combine(serverOutput, "Definitions"));
+            var defPath = Path.Combine(defFolder, $"{entity.EntityName}Definition.g.cs");
             filesWritten += WriteIfChanged(defPath, defCode, dryRun);
 
-            var vmCode = ViewModelGenerator.Generate(entity);
-            var vmPath = Path.Combine(clientOutput, $"{entity.EntityName}ViewModel.g.cs");
-            filesWritten += WriteIfChanged(vmPath, vmCode, dryRun);
+            // Opt-in: only emit View/ViewModel .g.cs when a hand-written *View.cs stub exists.
+            if (viewLocations.TryGetValue(entity.EntityName, out var viewFolder))
+            {
+                var vmCode = ViewModelGenerator.Generate(entity);
+                var vmFolder = viewModelLocations.GetValueOrDefault(entity.EntityName, viewFolder);
+                var vmPath = Path.Combine(vmFolder, $"{entity.EntityName}ViewModel.g.cs");
+                filesWritten += WriteIfChanged(vmPath, vmCode, dryRun);
 
-            var viewCode = ViewGenerator.Generate(entity);
-            var viewPath = Path.Combine(clientOutput, $"{entity.EntityName}View.g.cs");
-            filesWritten += WriteIfChanged(viewPath, viewCode, dryRun);
+                var viewCode = ViewGenerator.Generate(entity);
+                var viewPath = Path.Combine(viewFolder, $"{entity.EntityName}View.g.cs");
+                filesWritten += WriteIfChanged(viewPath, viewCode, dryRun);
+            }
         }
 
         Console.WriteLine($"[CodeGen] Done. {filesWritten} files {(dryRun ? "would be" : "")} written.");
@@ -193,5 +217,11 @@ public class Program
         for (int i = 0; i < args.Length - 1; i++)
             if (args[i] == name) return args[i + 1];
         return null;
+    }
+
+    private static bool IsInBinOrObj(string path)
+    {
+        var sep = Path.DirectorySeparatorChar;
+        return path.Contains($"{sep}bin{sep}") || path.Contains($"{sep}obj{sep}");
     }
 }
